@@ -1,102 +1,104 @@
 #!/bin/python3
-import crypt, os, hashlib
+import re
+import argparse
+import hashlib
 
-metodos = {"1":"MD5","5":"SHA-256","6":"SHA-512","y":"Yescrypt"}
+
+# Help:        python BBruteHash.py -h
+# Example:     python BBruteHash.py -w ./wordlist.txt -a MD5 --hash e2fc714c4727ee9395f324cd2e7f331f
 
 
-print("="*50)
-print("Bbrutehash".center(50))
-print("="*50)
+class BBruteHash:
+    def __init__(self):
+        self.args = self.getArgs()
+        self.checkArgs()
+        self.hashType = self.getHashType()
+        self.exec()
 
-while True:
-    
-    print("Selecione um dos algoritimos abaixo:")
-    for key, metodo in metodos.items():
-        print(f"[{key}] - {metodo}")
+    def exec(self):
+        with open(self.args.wordlistpath, "r", encoding="utf-8") as wl:
+            for word in wl:
+                self.compare(word)
 
-    input_metodo = str(input(">>>"))
-    if input_metodo in metodos.keys():
-        print("="*50)
-        print(f"O metodo selecionado foi: {metodos[input_metodo]}".center(50))
-        print("="*50)
-        if input_metodo == "y":
-            print("Informe os parâmetros da hash")
-            print("Exemplo: $<metodo>$<PARÂMENTROS>$<Salt>$<Hash>")
-            input_parametros = str(input(">>>"))
-        break
-    else:
-        print("="*70)
-        print("Entrada inválida, por favor selecione um metodo valido.".center(70))
-        print("="*70)
+        print(f"No password matches hash `{self.args.hash}`")
+        quit()
 
-if input_metodo == "y":
-    print("Informe o salt à ser utilizado.")
-    print("Exemplo: $<metodo>$<PARÂMENTROS>$<Salt>$<Hash>")
-    while True:
-        input_salt = str(input(">>>")).strip()
-        if input_salt:
-            break      
+    def getArgs(self):
+        parser = argparse.ArgumentParser(description="Program Description")
+        parser.add_argument(
+            "-w",
+            "--wordlistpath",
+            type=str,
+            help="Enter the path of the `word list.txt` file",
+        )
+        parser.add_argument(
+            "--hash",
+            type=str,
+            help="Enter the hash",
+        )
+        parser.add_argument(
+            "-a",
+            "--algorithm",
+            choices=["MD5", "SHA256", "SHA512", "Yescrypt"],
+            type=str,
+            help="Choose an algorithm",
+        )
+        parser.add_argument(
+            "-s",
+            "--salt",
+            type=str,
+            help="Enter the salt",
+            default=None,
+        )
+
+        return parser.parse_args()
+
+    def compare(self, word):
+        hashPassword = self.createHashByWord(word)
+        if self.args.hash == hashPassword.hexdigest():
+            print(f"Password found: {word}")
+            quit()
+
+    def createHashByWord(self, word):
+        if self.hashType == "MD5":
+            return hashlib.md5(word.encode("UTF-8"))
+        if self.hashType == "SHA-256":
+            return hashlib.sha256(word.encode("UTF-8"))
+        if self.hashType == "SHA-512":
+            return hashlib.sha512(word.encode("UTF-8"))
         else:
-            print("Salt OBRIGATÓRIO, para o metodo escolhido.")
-else:
-    print("Informe o salt à ser utilizado. (CASO NÃO SEJA INFORMADO, NÃO SERÁ UTILIZADO SALT)")
-    print("Exemplo: $<metodo>$<Salt>$<Hash>")
-    input_salt = str(input(">>>")).strip()
-while True:
-    input_hash = str(input("Informe a hash\n>>>"))
-    if input_hash:
-        break
-    else:
-        print("O campo hash não pode ser vazio.")
+            print("Unknown algorithm")
+            quit()
 
-if input_salt:
-    if input_metodo == "y":
-        hash_alvo = f"${input_metodo}${input_parametros}${input_salt}${input_hash}"
-    else:
-        hash_alvo = f"${input_metodo}${input_salt}${input_hash}"
-else:
-    hash_alvo = input_hash
-
-local_path = os.getcwd()
-print(f"ATENÇÃO: A wordlist deve estar localizada na pasta: {local_path}")
-print("Informe o nome da wordlist contendo a extensão.")
-print("EXEMPLO: wordlist.txt")
-wordlist = str(input(">>> "))
-
-with open(wordlist, "r", encoding="utf-8") as wl:
-    for senha in wl:
-        senha = senha.strip()
-        if input_salt:
-            if input_metodo == "y":
-                hash_senha = crypt.crypt(senha,f"${input_metodo}${input_parametros}${input_salt}$")
-            else:
-                hash_senha = crypt.crypt(senha,f"${input_metodo}${input_salt}$")
-            
-            if hash_alvo == hash_senha:
-                print(f"Senha encontrada: {senha}")
-                break
-            else:
-                print(f"Testado: {senha}")
-
+    def checkHashType(self):
+        if re.match(r"^\$1\$[a-zA-Z0-9./]{8}\$", self.args.hash):
+            return "MD5"
+        elif re.match(r"^\$5\$[a-zA-Z0-9./]{16}\$", self.args.hash):
+            return "SHA-256"
+        elif re.match(r"^\$6\$[a-zA-Z0-9./]{16}\$", self.args.hash):
+            return "SHA-512"
+        elif re.match(r"^\$y\$[a-zA-Z0-9./]+\$[a-zA-Z0-9./]{16}\$", self.args.hash):
+            return "Yescrypt"
         else:
-            if input_metodo == "1":
-                hash_senha = hashlib.md5(senha.encode('UTF-8'))
-                if hash_alvo == hash_senha.hexdigest():
-                    print(f"Senha encontrada: {senha}")
-                    break
-                else:
-                    print(f"Testado: {senha}")
-            elif input_metodo == "5":
-                hash_senha = hashlib.sha256(senha.encode('UTF-8'))
-                if hash_alvo == hash_senha.hexdigest():
-                    print(f"Senha encontrada: {senha}")
-                    break
-                else:
-                    print(f"Testado: {senha}")
-            elif input_metodo == "6":
-                hash_senha = hashlib.sha512(senha.encode('UTF-8'))
-                if hash_alvo == hash_senha.hexdigest():
-                    print(f"Senha encontrada: {senha}")
-                    break
-                else:
-                    print(f"Testado: {senha}")
+            print("Unknown hash type")
+            quit()
+
+    def checkArgs(self):
+        if not self.args.wordlistpath:
+            print("The --wordlistpath parameter is required")
+            quit()
+        if not self.args.hash:
+            print("The --hash parameter is required")
+            quit()
+        if not self.args.algorithm:
+            print("The --algorithm parameter is required")
+            quit()
+        if self.args.algorithm == "Yescrypt" and not self.args.salt:
+            print("Yescrypt algorithm needs salt parameter")
+            quit()
+
+    def getHashType(self):
+        return self.args.algorithm if self.args.algorithm else self.checkHashType()
+
+
+BBruteHash()
